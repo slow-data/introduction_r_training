@@ -1,0 +1,413 @@
+---
+title: '# **R - DATA VISUALIZATION**'
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+  html_notebook:
+    highlight: haddock
+    md_extensions: -autolink_bare_uris+hard_line_breaks
+    theme: simplex
+    toc: yes
+    toc_float: yes
+date: "December 15, 2016"
+---
+
+
+--- 
+
+```{r set_options, echo = FALSE, cache = FALSE, include = FALSE}
+options(width = 110)
+library(knitr)
+opts_chunk$set(cache = FALSE, message = FALSE, warning = FALSE, fig.height = 5, fig.width =  9, cache.lazy = FALSE)
+```
+
+Graphics in data analysis are useful for several tasks including:
+
+- understand data properties
+- find patterns in data
+- communicate results
+
+First thing you want to do, as usual, is to setup your working directory
+
+```{r setup, include=TRUE}
+# dir.create("C:/Users/jac/Documents/GitHub/introduction_r_training/4_data_visualization") # put the path you prefer
+setwd("C:/Users/jac/Documents/GitHub/introduction_r_training/4_data_visualization") # use same path used above
+```
+
+and load the packages you will need for this class (if you have not done so yet you will have to install them first)
+
+
+```{r}
+library(dplyr)
+library(MASS)
+library(rworldmap)
+library(ggplot2)
+library(RColorBrewer)
+```
+
+# **UNDERSTAND DATA PROPERTIES**
+
+We will start with some exploratory graphics (quick and dirty) to summarize data and highlight broad features.
+This is useful to explore basic questions and hypothesis, suggest modeling strategies, etc.
+
+
+
+```{r}
+x <- rnorm(100)
+y <- x + rnorm(100, mean=0.2, sd=2)
+df <- data.frame(lab = LETTERS[1:7], g = rgamma(7, shape = 100))
+```
+
+plot() is a generic function to plot R objects. It is generic because it adapts to the input provided:
+
+- For istance if you provide just a numeric vector of numbers the default is to plot them as points on y axis against an integer index on x axis
+- While if you provide two numeric vectors the default is to plot the points determined by the (x,y) couples (a scatterplot)
+- If you provide a dataframe with a numerical and a factor you will get a barplot
+
+```{r}
+plot(x) # values against integer index
+plot(x, y) # scatterplot
+plot(df) # barplot
+```
+
+Now let's play with some insurance data. Read the data (copy the data PolicyPtf.csv in the working directory first)
+
+```{r}
+dt <- read.csv("../data/PolicyPtf.csv")
+str(dt) # to have an idea of what kind of data you have read-in
+summary(dt) # to obtain a summary of data
+```
+
+We've got 100.000 observations, 20 variables including
+
+- temporal information: calendar year
+- various information on the type of risk (policyholder gender, type car of vehicle insured, etc.) 
+- various risk information (number of material claims occurred in a given year, percentage of the year being exposed to the risk, etc.) 
+
+Once you know your data is clean you may want to explore given features of them. For instance I see that *Category_car* is grouped in 3 categories (Small, Medium and Large) and in summary I have the count of each category, but I may want to have a quick (and dirt) visual view of this variable
+
+```{r}
+dt_poldur <- dt %>% group_by(Poldur) %>% summarise(Expos=sum(Exposure))
+plot(dt_poldur) 
+dt_car <- dt %>% group_by(Category_Car) %>% summarise(Expos=sum(Exposure))
+plot(dt_car) 
+```
+
+There is also specific function to create barplots in R, but input have to be provided in a slight different way:
+
+
+```{r}
+barplot(dt_poldur$Expos, names.arg = dt_poldur$Poldur)
+```
+
+
+
+Watching again the sumamry of data we see our youngest policyholder is 18, our oldest is 75 and the median age is 40. We have also other quantiles but to have a more thorough view of the distribution you can draw a histogram for this variable 
+
+
+```{r}
+hist(dt$Age)
+hist(dt$Age, nclass = 30) # to smooth more by increasing number of bins
+```
+
+Another way to get a quick visualization of a distribution is to use boxplots
+```{r}
+boxplot(dt$Value_Car)
+```
+
+
+In this case we see clearly that: 
+
+- the bulk of distribution (50%) has a value around 10.000 and 20.000
+- maximum excluding outliers is somewhere between 40k and 50k
+- right side of distribution it is much more dispersed
+- there are several outliers, that is cars with a value a lot more higher than normal (more than 3/2 times of upper quartile, 75th quantile)
+
+Indeed in R boxplots the box correspond to the interquartile range (from 25th to 75th quantile), black line inside the box is the median, the lines extending vertically from the box (whiskers) indicate variability outside the upper and lower quartile. Outliers are plotted as individual points.
+
+
+
+
+# **FIND PATTERNS**
+
+Usually it is a good idea to investigate relations using visualization since we are naturally prone to detect trends, relationships, etc in a visual way
+
+When we talk about patterns in data we usually refer to relationships between two or more variables. Options to visualize two dimnensions are:
+
+- draw multiple boxplot in one window
+- scatterplot
+- etc.
+
+To add a 3rd dimension one option is to use different colors, shapes, sizes, etc.
+
+Say we want to see if age distribution change according to car category
+
+```{r}
+# boxplot function supports formula (~) statements
+boxplot(dt$Age ~ dt$Category_Car, col="salmon2")
+```
+
+
+The *hist()* function does not support the formula statment, but you can modify directly the global graphical parameteres in order to split the graphical device into multiple slots. Before changing global parameters it is a good idea to save a copy of original settings in order to easily go back to defaults.
+
+```{r}
+parOriginal <- par(no.readonly = TRUE) # save a copy of original graphical parameters
+par(mfrow=c(2,2)) # par can be used to set or query graphical parameters
+hist(dt[dt$Category_Car=="Small","Age"], nclass = 30)
+hist(dt[dt$Category_Car=="Medium","Age"], nclass = 30)
+hist(dt[dt$Category_Car=="Large","Age"], nclass = 30)
+hist(dt$Age, nclass = 30) # full age distribution
+par(parOriginal) # set default graphical parameters
+```
+
+
+## **SCATTERPLOT**
+
+let's simulate some numbers
+
+
+```{r}
+# two normal populations, with mean 2 and 4 respectively 
+x_a <- rnorm(50, 2)
+x_b <- rnorm(50, 4)
+x <- c(x_a, x_b)
+
+# another two normal populations respectively correlated with previous ones
+y_a <- x_a + rnorm(50, 0.2, 0.5)
+y_b <- x_b + rnorm(50, 0.2, 1)
+y <- c(y_a, y_b)
+
+# a variable to label the two populations
+l <- c(rep("A", 50), rep("B", 50))
+
+# a dataframe including x, y and l
+df <- data.frame(x=x, y=y, l=l)
+```
+
+
+```{r}
+# scatterplot 2-d
+plot(df$x, df$y)
+# add a third dimension with colour
+with(df, plot(x, y, col = l))
+```
+
+
+## **SPATIAL ANALYSIS**
+
+If you are interested in the visualization of geographical attribute then a map may be a good idea. R can be used as a fast, user-friendly and extremely powerful command-line Geographic Information System (GIS)
+
+In R there is a huge a growing number of spatial data packages. Here we will focus on *rworldmap*, a package for visualising global data, concentrating on data referenced by country.
+
+The package stores multiple maps which can be accessed through *getMap* function
+
+```{r}
+newmap <- getMap(resolution = "coarse")  
+class(newmap)
+```
+
+Maps in R are classified as spatial (sp) objects. Spatial objects are made up of a number of different slots (that can be accessed through the @ operator):
+
+- bbox (bounding box, mostly used for setting up plots)
+- data (data indeed)
+- polygons/lines/points/... (the geometry instructing R how to plot maps)
+- proj4string (definition of coordinate reference system)
+
+Inside each slot you may have multiple components which, as usual, can be accessed with $ operator
+
+```{r, include=FALSE}
+newmap@data$POP_EST
+newmap@data$NAME
+```
+
+Plot is a generic function and it works also with spatial objects
+
+```{r, include=FALSE}
+plot(newmap)
+```
+
+To add some information in this map we need some attribute at country-level. Load a R workspace containing a simulated simple dataset with profitability KPIs for countries in a multinational insurance Group.
+
+```{r, include=FALSE}
+load("../data/group_data.RData") # a dataframe called "new" should appear in your workspace
+```
+
+For each country in the Group you have some profitability indicators. The package *rworldmap* provides a function to join country-level attributes to an internal map. All you need to do is provide the name of the column containing the country name (nameJoinColumn = 'name') and specify you want to join by name (joinCode = 'NAME')
+
+```{r}
+new2 <- joinCountryData2Map(new, joinCode = "NAME", nameJoinColumn = "name")
+```
+
+Function *mapCountryData* in rworldmap draw a map of country-level data, allowing countries to be coloured
+
+```{r}
+mapCountryData(new2, nameColumnToPlot="LR") # Loss Ratio
+```
+
+Using spatial data in R can be challenging because there are many types and formats and there are a ton of packages from a very diverse user community. Anyway there is an increasing trend of harmonization and the capabilities offered are extremely vast. A good start is the [CRAN tutorial](https://cran.r-project.org/doc/contrib/intro-spatial-rl.pdf), or one of the many [tutorial in github](https://pakillo.github.io/R-GIS-tutorial).
+
+
+
+
+# **COMMUNICATE RESULTS**
+
+Normally after analysis results are shared with an audience and here visualization are particularly important. In general using visual aids is a good idea to conceive complex messages. When it's time to communicate the results it is also important to adjust the visualization to make it as much as possible clear and easy to understand for the audience. In this context the sizes, shapes, widths, labels, margins, fonts, etc. are all things that become important.
+
+
+
+## **ADDITIONAL GRAPHICAL PARAMETERS**
+
+When applicable plot function allows you to specify many additional graphical parameters. To have a list of them type ?par
+
+Let's take the histogram created before and clean it a bit with additional graphical parameters
+
+```{r}
+hist(dt$Age, 
+     nclass = 30, # number of bins
+     probability = TRUE, 
+     col="wheat", # color of bars
+     border = "black", # color of border of bars
+     xlab = "Age", # label of x axis
+     ylab = "", # label of y axis
+     ylim = c(0, 0.03),
+     main = "Policyholder's age probability density distribution" # title
+     ) 
+
+fit <- fitdistr(dt$Age, "normal") # Maximum-likelihood fitting of univariate distributions
+curve(dnorm(x, mean = fit$estimate["mean"], sd = fit$estimate["sd"]), add=T, col = "red") # Draws a curve corresponding to a function
+
+
+# Also legends can be added
+
+legend("topright", # position of legend box
+       bty = "n", # box type = none
+       legend = c("Observed", "theoretical normal"), # text to be displayed
+       col = c("wheat", "red"), # colors
+       lty = c(1,1), # line type 
+       lwd = c(10, 1) # line width
+       )
+
+```
+
+
+
+
+
+## **GGPLOT**
+
+All functions used until now belong to the *base* plotting systems. In R there are available 3 different plotting systems:
+
+- base
+- lattice
+- ggplot
+
+ggplot is an implementation of [Grammar of Graphics by Leland Wilkinson](http://www.springer.com/gp/book/9780387245447) (a set of principles for graphics). Grammar of graphics is a description of how graphics can be broken down into abstract concepts (like languages are divided in nouns, adjectives, etc.). ggplot graphics abstraction is a very powerful concept to organize all kind of graphics and became extremely popular in recent years.
+
+ggplot2, as lattice, is built upon the grid package which is a low-level graphic system that provides full access to the graphics facilities in R. In theory the knowledge of this system will allow you to make arbitrary modifications to plots and it will allow you to produce a range of diagrams and data visualizations that is limited only by your imagination. Given the control that ggplot gives you over the graphic it is particularly suited to produce high-quality, ready-to-publish visualizations.
+
+
+Briefly, the grammar tells us that a statistical graphics is a mapping from data to aesthetic attributes (colour, shape, size) of geometric objects (points, lines, bars). The plot may also contain statistical transformations of the data and is drawn on a specific coordinate system. Graphics are built with layers.
+
+```{r}
+
+# if you are using a Windows machine you need to translate some font for ggplot
+windowsFonts(Times=windowsFont("TT Times New Roman"))
+
+gg1 <-ggplot(dt, aes(x = Age, group = Category_Car, fill = Category_Car)) + # set Age on x-axis, group and fill (with color) according to the values of category_car
+  geom_density(alpha = .4) + # transform age data into a density distribution summary 
+  xlab("Policyholder's age") + # set x-axis label
+  ylab("") + # set y-axis label
+  ggtitle("Age distributions by car category") + # set plot title
+  guides(fill=guide_legend("Car category")) + # color legend according to values of category car
+  theme(plot.title = element_text(hjust = 0, vjust=5, size = 18, family = "Times"), # set position, size and font for title
+        axis.text.x = element_text(size = 14, family = "Times"), # set size and font for x axis label
+        axis.text.y = element_text(size = 14, family = "Times"), # set size and font for y axis label
+        panel.background = element_rect(fill = "white") # set background color
+        )
+     
+gg1 # to plot ggplot plots you have to call them
+```
+
+
+
+
+
+
+## **COLOURS**
+
+A careful choice of colors can help to draw better visualizations. R has 657 built in color names. Use colors() for a list of all colors known by R.
+
+When we need to show a range of colors we can use palettes. In the map created before the palette was not specified so default of function *mapCountryData* was used (in that case a heat palette, with colors ranging gradually from yellow to red). We can customize palettes to our needs.
+
+
+```{r}
+# using a vector of valid colors
+mapCountryData(new2, nameColumnToPlot="LR",
+               colourPalette = c("red","white","blue", "green", "purple", "orange", "grey")) # not so nice, right?
+```
+
+A good package for color palettes is *RColorBrewer*. the function to create palettes is *brewer.pal*. It takes two arguments:
+
+- n --> Number of different colors in the palette, minimum 3, maximum depending on palette
+- name --> a palette name
+
+To have a look at all available palettes you can use:
+
+```{r}
+display.brewer.all(n=NULL, type="all") # diverging, sequential, qualitative
+display.brewer.all(n=NULL, type="seq") # only sequential
+```
+
+For an interactive viewer of palettes you can visit this [page](http://colorbrewer2.org/) 
+
+```{r}
+# using output from RColorBrewer
+mapCountryData(new2, nameColumnToPlot="LR",
+               colourPalette = brewer.pal(7, "Purples"))
+```
+
+
+
+
+
+
+## **GRAPHICAL DEVICES**
+
+Once your nice plot is completed and ready you want to export it for reporting purpose. There are many graphic devices in R. Graphic devices is something where you can make a plot appear:
+
+- a window on your computer (screen device)
+- a PDF file (file device)
+- a PNG or JPEG (file device)
+- a scalable vector graphics (SVG) file (file device)
+
+When you make a plot in R it has to be "sent" to a specific graphic device. The most common place to be sent is the screen. On Mac screen device is launched with the quartz(), in windows with windows(), on Unix/Linux with x11().
+
+Functions like plot(), hist(), ggplot() they all have screen as default device. If you want to send the graphics to a device different from screen you have to:
+
+- explicitly launch a graphic device
+- call a plotting function to make a plot (if you are using a file device no plot will appear on the screen!)
+- annotate plot if necessary (add legends, etc.)
+- explicitly close the graphics device with dev.off()
+
+
+```{r, eval=FALSE}
+# save the ggplot in pdf
+pdf(file = "myplot.pdf")
+gg1
+dev.off()
+
+# save the ggplot in PNG
+png(file = "myplot.PNG")
+gg1
+dev.off()
+```
+
+
+
+Today we have scratched the surface, but R graphical capabilities are great. To get inspired have a tour in [R graph gallery](http://www.r-graph-gallery.com/).
+
+
+
+
+
