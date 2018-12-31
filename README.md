@@ -9,7 +9,5 @@ The structure is the following:
 5. Data Modeling
 
 Target audience is people who have never worked with R before so the training can be easily followed by anyone.
-You can find it also in my blog [slow data](http://slow-data.com/category/r/).
-All comments are welcomed.
 
 Enjoy!
